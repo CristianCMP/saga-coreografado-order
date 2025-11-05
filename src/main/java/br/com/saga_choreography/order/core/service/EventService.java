@@ -22,20 +22,20 @@ import static io.micrometer.common.util.StringUtils.isEmpty;
 @AllArgsConstructor
 public class EventService {
 
-    private static final String CURRENT_SERVICE = "ORDER_SERVICE";
+    private static final String CURRENT_SOURCE = "ORDER_SERVICE";
 
     private final EventRepository repository;
 
     public void notifyEnding(Event event) {
-        event.setSource(CURRENT_SERVICE);
-        event.setOrderId(event.getOrderId());
+        event.setSource(CURRENT_SOURCE);
+        event.setOrderId(event.getPayload().getId());
         event.setCreatedAt(LocalDateTime.now());
 
         setEndingHistory(event);
 
         save(event);
 
-        log.info("Order {} with saga notified! TransactionID: {}",event.getOrderId(),event.getTransactionId());
+        log.info("Order {} with saga notified! TransactionId: {}", event.getOrderId(), event.getTransactionId());
     }
 
     private void setEndingHistory(Event event) {
@@ -48,10 +48,6 @@ public class EventService {
         }
     }
 
-    public Event save(Event event) {
-        return repository.save(event);
-    }
-
     public List<Event> findAll() {
         return repository.findAllByOrderByCreatedAtDesc();
     }
@@ -59,7 +55,7 @@ public class EventService {
     public Event findByFilters(EventFilters filters) {
         validateEmptyFilters(filters);
 
-        if (!ObjectUtils.isEmpty(filters.getOrderId())) {
+        if (!isEmpty(filters.getOrderId())) {
             return findByOrderId(filters.getOrderId());
         } else {
             return findByTransactionId(filters.getTransactionId());
@@ -84,9 +80,14 @@ public class EventService {
                 .orElseThrow(() -> new ValidationException("Event not found by orderID."));
     }
 
+    public Event save(Event event) {
+        return repository.save(event);
+    }
+
     public Event createEvent(Order order) {
-        var event = Event.builder()
-                .source(CURRENT_SERVICE)
+        var event = Event
+                .builder()
+                .source(CURRENT_SOURCE)
                 .status(SUCCESS)
                 .orderId(order.getId())
                 .transactionId(order.getTransactionId())
@@ -94,7 +95,7 @@ public class EventService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        addHistory(event, "Saga startedQ");
+        addHistory(event, "Saga started!");
 
         return save(event);
     }
